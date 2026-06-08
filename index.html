@@ -519,7 +519,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7yTfuwU_CLRyJSWnWbFNbNUnsFYcRNlJzvyJFjOWZGbLzGD1iFvTgHYJBjsF8xkQm/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwt_kdAUA2DzeqEeYLm5sa1yQJH9S6weQE3udZFyJ3YWVlRbId8c7MfQIhzPessofj0GQ/exec';
 
 let CUENTAS = {
   Familiar: {
@@ -683,6 +683,7 @@ async function guardarGasto(){
     await api({action:'addGasto',payload});
     document.getElementById('successMsg').textContent=`$${fmt(payload.monto)} en ${payload.cuenta} guardado en Google Sheets`;
     screenStack=[];goScreen('screen-success',false);showToast('✓ Gasto guardado en Sheets');
+    bustGastosCache(state.currentMonth, state.currentYear);
     await loadMesActual();
   }catch(err){showToast('❌ Error: '+err.message);}
   finally{setLoading(false);}
@@ -708,8 +709,32 @@ async function guardarIngresos(){
 }
 
 // ══════ MES ACTUAL ══════
+const _gastosCache = {}; // month cache to avoid redundant API calls
+
 async function loadMesActual(){
-  try{const m=state.currentMonth+1,y=state.currentYear;const [gr,ir]=await Promise.all([api({action:'getGastos',mes:m,anio:y}),api({action:'getIngresos',mes:m,anio:y})]);state.gastos=gr.gastos||[];if(ir.ingresos)state.ingresos[monthKey(state.currentMonth,state.currentYear)]=ir.ingresos;renderHome();}catch(e){}
+  try{
+    const m=state.currentMonth+1, y=state.currentYear;
+    const key=monthKey(state.currentMonth,state.currentYear);
+    // Use cache if available (bust on new gasto saved)
+    let gastos = _gastosCache[key];
+    if(!gastos){
+      const gr = await api({action:'getGastos',mes:m,anio:y});
+      gastos = gr.gastos||[];
+      _gastosCache[key] = gastos;
+    }
+    state.gastos = gastos;
+    // Load ingresos in parallel if not cached
+    if(!state.ingresos[key]){
+      const ir = await api({action:'getIngresos',mes:m,anio:y});
+      if(ir.ingresos) state.ingresos[key]=ir.ingresos;
+    }
+    renderHome();
+  }catch(e){}
+}
+
+function bustGastosCache(m, y){
+  const key = monthKey(m, y);
+  delete _gastosCache[key];
 }
 
 // Load frequency map from last 3 months — runs in background, non-blocking
@@ -1195,6 +1220,8 @@ async function guardarEdicion(){
     }});
     showToast('✓ Gasto actualizado');
     gastoToDelete = null;
+    bustGastosCache(state.histMonth, state.histYear);
+    bustGastosCache(state.currentMonth, state.currentYear);
     await loadMesActual();
     renderHistorial();
   } catch(err){ showToast('❌ Error: '+err.message); }
@@ -1208,6 +1235,8 @@ async function confirmarEliminar(){
     await api({action:'deleteGasto', id: gastoToDelete.id});
     showToast('✓ Gasto eliminado');
     gastoToDelete = null;
+    bustGastosCache(state.histMonth, state.histYear);
+    bustGastosCache(state.currentMonth, state.currentYear);
     await loadMesActual();
     renderHistorial();
   } catch(err){ showToast('❌ Error: '+err.message); }
@@ -1358,7 +1387,8 @@ document.getElementById('liqMonth').textContent=`${MONTHS[state.liqMonth]} ${sta
 document.getElementById('ingMonth').textContent=`${MONTHS[state.ingMonth]} ${state.ingYear}`;
 renderHome();
 loadMesActual();
-loadFreqMap(); // background, non-blocking
+// Load frequency map after 3s delay — avoids competing with initial data load
+setTimeout(loadFreqMap, 3000);
 </script>
 </body>
 </html>
