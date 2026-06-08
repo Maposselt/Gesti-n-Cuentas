@@ -519,7 +519,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxrt_S3PmlB7yug7EclVtpa_yN5Jzgpzd5zUJhyow-oSkYhvd0peR8ALh33bf7TKLlR1g/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7yTfuwU_CLRyJSWnWbFNbNUnsFYcRNlJzvyJFjOWZGbLzGD1iFvTgHYJBjsF8xkQm/exec';
 
 let CUENTAS = {
   Familiar: {
@@ -562,9 +562,13 @@ let form={},screenStack=[],currentScreen='screen-home';
 // ══════ API ══════
 async function api(body){
   if(!SCRIPT_URL||SCRIPT_URL==='TU_URL_AQUI'){showToast('⚠️ Configura tu URL de Apps Script');throw new Error('URL no configurada');}
-  const res=await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify(body)});
-  const data=await res.json();
-  if(data.error)throw new Error(data.error);
+  // Google Apps Script requires GET with payload as URL param to avoid CORS issues
+  const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
+  const res = await fetch(url, {method:'GET', redirect:'follow'});
+  const text = await res.text();
+  // GAS sometimes wraps response, parse safely
+  const data = JSON.parse(text);
+  if(data.error) throw new Error(data.error);
   return data;
 }
 function setLoading(on){state.loading=on;document.querySelectorAll('.btn-primary').forEach(b=>b.disabled=on);}
