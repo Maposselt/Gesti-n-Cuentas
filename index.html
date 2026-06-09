@@ -486,7 +486,7 @@
   <!-- IMAGE TAB -->
   <div id="importPane-image" style="display:none">
     <div style="background:var(--personal-light);border:1px solid var(--personal-mid);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--personal);margin-bottom:16px;line-height:1.5">
-      📸 Sube una captura de pantalla de tu app del banco. Claude extrae fecha, glosa y monto automáticamente.
+      📸 Sube una captura de pantalla de tu app del banco. Se extrae fecha, glosa y monto automáticamente.
     </div>
     <div class="upload-zone" id="uploadZoneImg" onclick="document.getElementById('imgInput').click()">
       <div class="upload-zone-icon">📸</div>
@@ -566,7 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTVjf2g4d428qRaueedBZiMnpic2GYK3hoQo8SyLO8rnEJcumdzn4Z877mcXafykGa4g/exec'; // URL de tu Apps Script
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7pCEvwe9qBba_4e0W7jwcNJhVwEh13HX6GTDM1qEkUIsH34B0I6vRP9L902QQcUpEQA/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -609,11 +609,20 @@ let form={},screenStack=[],currentScreen='screen-home';
 // ══════ API ══════
 async function api(body){
   if(!SCRIPT_URL||SCRIPT_URL==='TU_URL_AQUI'){showToast('⚠️ Configura tu URL de Apps Script');throw new Error('URL no configurada');}
-  // Google Apps Script requires GET with payload as URL param to avoid CORS issues
-  const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
-  const res = await fetch(url, {method:'GET', redirect:'follow'});
+  let res;
+  // Use POST for image (base64 too large for URL param), GET for everything else
+  if(body.action === 'geminiImage'){
+    res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'payload=' + encodeURIComponent(JSON.stringify(body)),
+      redirect: 'follow'
+    });
+  } else {
+    const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
+    res = await fetch(url, {method:'GET', redirect:'follow'});
+  }
   const text = await res.text();
-  // GAS sometimes wraps response, parse safely
   const data = JSON.parse(text);
   if(data.error) throw new Error(data.error);
   return data;
@@ -1281,7 +1290,7 @@ async function runBankSearch() {
     const res = await api({ action: 'searchByDesc', query });
     const matches = res.matches || [];
 
-    // Also ask Claude AI for a suggestion based on the merchant name
+    // Also ask IA for a suggestion based on the merchant name
     const aiPromise = getAISuggestion(query);
 
     if(matches.length === 0) {
@@ -1385,7 +1394,7 @@ async function onImageSelected(e) {
 
   // Show loading state
   goScreen('screen-import-image', true);
-  document.getElementById('imgReviewSub').textContent = '⏳ Claude está leyendo la imagen…';
+  document.getElementById('imgReviewSub').textContent = '⏳ Leyendo la imagen…';
   document.getElementById('imgReviewTable').innerHTML =
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
