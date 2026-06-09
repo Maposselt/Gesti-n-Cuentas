@@ -566,9 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbyC5OOeEUARwYI6H5ZjUHlv90HErzV1g8b5-b4jgwvHBm_NSVWlas_gqIHnhvzHNYzz3g/exec';
-const GEMINI_KEY  = 'AQ.Ab8RN6IDNtukbsTvVXtJLcOl0ZT7ofNmfGrxJfMWeW__Y_fnnA'; // aistudio.google.com → Get API Key
-const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTVjf2g4d428qRaueedBZiMnpic2GYK3hoQo8SyLO8rnEJcumdzn4Z877mcXafykGa4g/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -1027,28 +1025,10 @@ async function validateRowsWithAI(parsed){
     );
     if(exactMatch){matchCache[key]={status:'ok',grp:exactMatch.grp,cat:exactMatch.cat,cuenta:exactMatch.cuenta,rep:exactMatch.rep};continue;}
 
-    // Ask Gemini to match
+    // Ask Gemini via Apps Script proxy
     try{
-      if(!GEMINI_KEY||GEMINI_KEY==='TU_GEMINI_KEY_AQUI'){matchCache[key]={status:'unknown',reason:'Gemini no configurado'};continue;}
-      const prompt=`Eres un asistente que valida gastos domésticos.
-
-Tienes esta lista de cuentas válidas (formato Grupo|Categoria|Cuenta|Reparticion):
-${knownStr}
-
-El usuario importó un gasto con:
-- Grupo: "${grp}"
-- Categoria: "${cat}"
-- Cuenta: "${cuenta}"
-
-Responde SOLO en JSON sin markdown:
-{"status":"ok","grp":"...","cat":"...","cuenta":"...","rep":"...","reason":"..."}
-
-status puede ser: "ok" (coincide exacto), "match" (similar con sentido), "unknown" (sin coincidencia)`;
-      const res=await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
-      const data=await res.json();
-      const text=data.candidates[0].content.parts[0].text;
-      const json=JSON.parse(text.replace(/```json|```/g,'').trim());
-      matchCache[key]=json;
+      const res=await api({action:'geminiValidate',grp,cat,cuenta,knownStr});
+      matchCache[key]=res.result||{status:'unknown',reason:'Sin respuesta'};
     }catch(e){matchCache[key]={status:'unknown',reason:'Error al validar'};}
   }
 
@@ -1360,33 +1340,16 @@ function renderSearchResults(histMatches, aiResults) {
 }
 
 async function getAISuggestion(query) {
-  if(!GEMINI_KEY || GEMINI_KEY === 'TU_GEMINI_KEY_AQUI') return null;
   const combos = [];
   ['Familiar','Personal'].forEach(grp => {
     Object.entries(CUENTAS[grp]).forEach(([cat, data]) => {
       data.cuentas.forEach(c => combos.push(`${grp}|${cat}|${c}`));
     });
   });
-  const prompt = `Eres un asistente de finanzas personales chileno.
-El usuario tiene este texto de su cartola bancaria: "${query}"
-Estas son las combinaciones Grupo|Categoria|Cuenta disponibles:
-${combos.join(', ')}
-
-Responde SOLO en JSON sin markdown:
-{"grupo":"...","categoria":"...","cuenta":"...","razon":"explicación breve en español de por qué corresponde a esta combinación"}
-
-Si no puedes determinarlo con certeza razonable, responde: {"grupo":null}`;
   try {
-    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await res.json();
-    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(text);
-    if(!parsed.grupo) return null;
-    return parsed;
+    const res = await api({ action:'geminiSearch', query, combos: combos.join(', ') });
+    if(!res.result || !res.result.grupo) return null;
+    return res.result;
   } catch(e) { return null; }
 }
 
@@ -1427,45 +1390,12 @@ async function onImageSelected(e) {
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
   try {
-    if(!GEMINI_KEY||GEMINI_KEY==='TU_GEMINI_KEY_AQUI'){
-      throw new Error('Configura tu Gemini API Key en el archivo');
-    }
-    const prompt = `Esta es una captura de pantalla de la app bancaria chilena Banco Falabella mostrando movimientos de tarjeta de crédito.
-Extrae TODOS los gastos que aparecen en la imagen.
-Las fechas aparecen como encabezados de grupo (ej: "Domingo 7 de Junio 2026").
-Cada gasto tiene una glosa (nombre del comercio) y un monto negativo (ej: -$33.301).
-Si un monto no es legible por estar tapado, usa null.
-
-Responde SOLO en JSON válido sin markdown:
-{
-  "gastos": [
-    {"fecha": "07/06/2026", "glosa": "Manantial Webpay", "monto": 33301},
-    {"fecha": "07/06/2026", "glosa": "Sgcm Spa", "monto": null}
-  ]
-}
-
-Reglas:
-- fecha en formato DD/MM/AAAA
-- monto como número positivo sin puntos ni $, null si no se ve
-- incluye TODOS los gastos visibles en el mismo orden que aparecen`;
-
-    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } },
-            { text: prompt }
-          ]
-        }]
-      })
-    });
-
-    const data = await res.json();
-    if(data.error) throw new Error(data.error.message || 'Error Gemini');
-    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(text);
+    // Send image to Apps Script proxy → Gemini
+    const res = await api({ action:'geminiImage', base64, mimeType: file.type||'image/jpeg' });
+    if(res.error) throw new Error(res.error);
+    // res.gastos already parsed by Apps Script
+    const text = JSON.stringify({ gastos: res.gastos });
+    const parsed = res.gastos ? res : JSON.parse(text);
     imgRows = parsed.gastos || [];
 
     if (!imgRows.length) {
