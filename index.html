@@ -206,6 +206,15 @@
   .template-link-text{font-size:13px;font-weight:600;color:var(--personal);}
   .template-link-sub{font-size:11px;color:var(--text-muted);}
   .ai-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;}
+  .img-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;}
+  .img-row-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .img-row-glosa{font-size:14px;font-weight:600;flex:1;padding-right:8px;}
+  .img-row-amount{font-family:'DM Serif Display',serif;font-size:18px;color:var(--accent);flex-shrink:0;}
+  .img-row-date{font-size:11px;color:var(--text-muted);margin-bottom:8px;}
+  .img-row-selects{display:flex;flex-direction:column;gap:6px;}
+  .img-row-select{width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--bg);outline:none;color:var(--text);}
+  .img-row-select:focus{border-color:var(--accent);}
+  .img-row.unlegible{border-color:var(--warning);background:var(--warning-light);}
   .progress-bar{height:4px;background:var(--border);border-radius:2px;margin:12px 0;overflow:hidden;}
   .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--familiar-mid));border-radius:2px;transition:width .3s;}
   .search-result{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:6px;}
@@ -442,33 +451,71 @@
 <!-- IMPORTAR -->
 <div class="screen" id="screen-import">
   <div class="step-title">Importar gastos</div>
-  <div class="step-sub">Sube un Excel o CSV con tus gastos</div>
 
-  <!-- Template download -->
-  <div class="template-link" onclick="descargarPlantilla()">
-    <span style="font-size:24px">📥</span>
-    <div><div class="template-link-text">Descargar plantilla Excel</div><div class="template-link-sub">Columnas: Fecha, Monto, Quien, Grupo, Categoria, Cuenta, Descripcion</div></div>
+  <!-- Import type tabs -->
+  <div class="filter-tabs" style="margin-bottom:20px">
+    <button class="filter-tab active" id="importTab-file" onclick="switchImportTab('file')">📂 Excel / CSV</button>
+    <button class="filter-tab" id="importTab-image" onclick="switchImportTab('image')">📸 Imagen banco</button>
   </div>
 
-  <!-- Upload zone -->
-  <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-    <div class="upload-zone-icon">📂</div>
-    <div class="upload-zone-label">Toca para subir archivo</div>
-    <div class="upload-zone-sub">Excel (.xlsx) o CSV — arrastra o selecciona</div>
+  <!-- FILE TAB -->
+  <div id="importPane-file">
+    <div class="template-link" onclick="descargarPlantilla()">
+      <span style="font-size:24px">📥</span>
+      <div><div class="template-link-text">Descargar plantilla Excel</div><div class="template-link-sub">Columnas: Fecha, Monto, Quien, Grupo, Categoria, Cuenta, Glosa Banco</div></div>
+    </div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div class="upload-zone-icon">📂</div>
+      <div class="upload-zone-label">Toca para subir archivo</div>
+      <div class="upload-zone-sub">Excel (.xlsx) o CSV — arrastra o selecciona</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none" onchange="onFileSelected(event)">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-size:12px;color:var(--text-muted);line-height:1.6">
+      <strong style="color:var(--text);display:block;margin-bottom:6px">Columnas aceptadas</strong>
+      <b>Fecha</b> — DD/MM/AAAA o AAAA-MM-DD<br>
+      <b>Monto</b> — número (sin puntos ni $)<br>
+      <b>Quien</b> — Max / Barb<br>
+      <b>Grupo</b> — Familiar / Personal<br>
+      <b>Categoria</b> — ej: Casa, Salidas, Auto…<br>
+      <b>Cuenta</b> — ej: Arriendo, Bencina…<br>
+      <b>Descripcion</b> — opcional<br>
+      <b>Glosa Banco</b> — alimenta el buscador <span style="background:var(--personal-light);color:var(--personal);padding:1px 6px;border-radius:8px;font-weight:600">recomendado</span>
+    </div>
   </div>
-  <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none" onchange="onFileSelected(event)">
 
-  <!-- Formato aceptado -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-size:12px;color:var(--text-muted);line-height:1.6">
-    <strong style="color:var(--text);display:block;margin-bottom:6px">Columnas aceptadas</strong>
-    <b>Fecha</b> — DD/MM/AAAA o AAAA-MM-DD<br>
-    <b>Monto</b> — número (sin puntos ni $)<br>
-    <b>Quien</b> — Max / Barb<br>
-    <b>Grupo</b> — Familiar / Personal<br>
-    <b>Categoria</b> — ej: Casa, Salidas, Auto…<br>
-    <b>Cuenta</b> — ej: Arriendo, Bencina…<br>
-    <b>Descripcion</b> — opcional<br>
-    <b>Glosa Banco</b> — texto de la cartola <span style="background:var(--personal-light);color:var(--personal);padding:1px 6px;border-radius:8px;font-weight:600">alimenta el buscador</span>
+  <!-- IMAGE TAB -->
+  <div id="importPane-image" style="display:none">
+    <div style="background:var(--personal-light);border:1px solid var(--personal-mid);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--personal);margin-bottom:16px;line-height:1.5">
+      📸 Sube una captura de pantalla de tu app del banco. Claude extrae fecha, glosa y monto automáticamente.
+    </div>
+    <div class="upload-zone" id="uploadZoneImg" onclick="document.getElementById('imgInput').click()">
+      <div class="upload-zone-icon">📸</div>
+      <div class="upload-zone-label">Toca para subir imagen</div>
+      <div class="upload-zone-sub">JPG o PNG — captura de la app del banco</div>
+    </div>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="onImageSelected(event)">
+  </div>
+</div>
+
+<!-- IMAGE IMPORT REVIEW -->
+<div class="screen" id="screen-import-image">
+  <div class="step-title">Revisar imagen</div>
+  <div class="step-sub" id="imgReviewSub">Asigna grupo, categoría y cuenta a cada gasto</div>
+
+  <!-- Who paid selector (applies to all rows) -->
+  <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:13px;font-weight:600;color:var(--text-muted);flex-shrink:0">¿Quién pagó?</span>
+    <div style="display:flex;gap:8px;flex:1">
+      <button id="imgWhoMax" class="who-btn selected" onclick="setImgWho('Max')" style="flex:1;padding:8px">Max</button>
+      <button id="imgWhoBarb" class="who-btn" onclick="setImgWho('Barb')" style="flex:1;padding:8px">Barb</button>
+    </div>
+  </div>
+
+  <div id="imgReviewTable"></div>
+
+  <div style="margin-top:16px">
+    <button class="btn-primary green" onclick="confirmarImageImport()">✓ Importar gastos</button>
+    <button class="btn-secondary" onclick="navTo('import')">← Volver</button>
   </div>
 </div>
 
@@ -493,11 +540,11 @@
 <!-- NAVBAR -->
 <div class="navbar">
   <button class="nav-item active" id="nav-home" onclick="navTo('home')"><div class="nav-item-icon">🏠</div><div class="nav-item-label">INICIO</div></button>
-  <button class="nav-item" id="nav-historial" onclick="navTo('historial')"><div class="nav-item-icon">📋</div><div class="nav-item-label">GASTOS</div></button>
-  <button class="nav-item" id="nav-liquidacion" onclick="navTo('liquidacion')"><div class="nav-item-icon">⚖️</div><div class="nav-item-label">LIQUIDAR</div></button>
-  <button class="nav-item" id="nav-ingresos" onclick="navTo('ingresos')"><div class="nav-item-icon">💰</div><div class="nav-item-label">INGRESOS</div></button>
-  <button class="nav-item" id="nav-search" onclick="navTo('search')"><div class="nav-item-icon">🔍</div><div class="nav-item-label">BUSCAR</div></button>
   <button class="nav-item" id="nav-import" onclick="navTo('import')"><div class="nav-item-icon">📤</div><div class="nav-item-label">IMPORTAR</div></button>
+  <button class="nav-item" id="nav-search" onclick="navTo('search')"><div class="nav-item-icon">🔍</div><div class="nav-item-label">BUSCAR</div></button>
+  <button class="nav-item" id="nav-historial" onclick="navTo('historial')"><div class="nav-item-icon">📋</div><div class="nav-item-label">GASTOS</div></button>
+  <button class="nav-item" id="nav-ingresos" onclick="navTo('ingresos')"><div class="nav-item-icon">💰</div><div class="nav-item-label">INGRESOS</div></button>
+  <button class="nav-item" id="nav-liquidacion" onclick="navTo('liquidacion')"><div class="nav-item-icon">⚖️</div><div class="nav-item-label">LIQUIDAR</div></button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -519,7 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwt_kdAUA2DzeqEeYLm5sa1yQJH9S6weQE3udZFyJ3YWVlRbId8c7MfQIhzPessofj0GQ/exec';
+const SCRIPT_URL = 'TU_URL_AQUI';
 
 let CUENTAS = {
   Familiar: {
@@ -585,7 +632,7 @@ function goBack(){if(!screenStack.length)return;const prev=screenStack.pop();doc
 function goHome(){screenStack=[];form={};navTo('home');}
 function navTo(tab){
   screenStack=[];form={};
-  const map={home:'screen-home',historial:'screen-historial',liquidacion:'screen-liquidacion',ingresos:'screen-ingresos',search:'screen-search',import:'screen-import',config:'screen-config'};
+  const map={home:'screen-home',historial:'screen-historial',liquidacion:'screen-liquidacion',ingresos:'screen-ingresos',search:'screen-search',import:'screen-import',config:'screen-config','import-image':'screen-import-image'};
   goScreen(map[tab],false);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const navEl=document.getElementById('nav-'+tab);
@@ -602,7 +649,7 @@ function navTo(tab){
   }
 }
 function updateHeader(){
-  const titles={'screen-home':'Gestión Cuentas','screen-s1':'Nuevo gasto','screen-s2':'Nuevo gasto','screen-s3':'Nuevo gasto','screen-s4':'Nuevo gasto','screen-s5':'Nuevo gasto','screen-success':'¡Listo!','screen-ingresos':'Ingresos','screen-historial':'Historial','screen-liquidacion':'Liquidación','screen-config':'Configuración','screen-search':'Buscar gasto','screen-import':'Importar gastos','screen-import-preview':'Vista previa'};
+  const titles={'screen-home':'Gestión Cuentas','screen-s1':'Nuevo gasto','screen-s2':'Nuevo gasto','screen-s3':'Nuevo gasto','screen-s4':'Nuevo gasto','screen-s5':'Nuevo gasto','screen-success':'¡Listo!','screen-ingresos':'Ingresos','screen-historial':'Historial','screen-liquidacion':'Liquidación','screen-config':'Configuración','screen-search':'Buscar gasto','screen-import':'Importar gastos','screen-import-preview':'Vista previa','screen-import-image':'Imagen banco'};
   document.getElementById('headerTitle').textContent=titles[currentScreen]||'Gestión Cuentas';
   document.getElementById('btnBack').disabled=screenStack.length===0;
   const isForm=['screen-s1','screen-s2','screen-s3','screen-s4','screen-s5'].includes(currentScreen);
@@ -1357,6 +1404,189 @@ Si no puedes determinarlo con certeza razonable, responde: {"grupo":null}`
     if(!parsed.grupo) return null;
     return parsed;
   } catch(e) { return null; }
+}
+
+// ══════ IMPORTAR DESDE IMAGEN BANCO ══════
+let imgWho = 'Max';
+let imgRows = [];
+
+function switchImportTab(tab) {
+  document.getElementById('importTab-file').classList.toggle('active', tab==='file');
+  document.getElementById('importTab-image').classList.toggle('active', tab==='image');
+  document.getElementById('importPane-file').style.display = tab==='file' ? 'block' : 'none';
+  document.getElementById('importPane-image').style.display = tab==='image' ? 'block' : 'none';
+}
+
+function setImgWho(who) {
+  imgWho = who;
+  document.getElementById('imgWhoMax').classList.toggle('selected', who==='Max');
+  document.getElementById('imgWhoBarb').classList.toggle('selected', who==='Barb');
+}
+
+async function onImageSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = ''; // reset so same file can be re-selected
+
+  // Convert to base64
+  const base64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('Error al leer imagen'));
+    r.readAsDataURL(file);
+  });
+
+  // Show loading state
+  goScreen('screen-import-image', true);
+  document.getElementById('imgReviewSub').textContent = '⏳ Claude está leyendo la imagen…';
+  document.getElementById('imgReviewTable').innerHTML =
+    '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
+            },
+            {
+              type: 'text',
+              text: `Esta es una captura de pantalla de la app bancaria chilena Banco Falabella mostrando movimientos de tarjeta de crédito.
+Extrae TODOS los gastos que aparecen en la imagen.
+Las fechas aparecen como encabezados de grupo (ej: "Domingo 7 de Junio 2026").
+Cada gasto tiene una glosa (nombre del comercio) y un monto negativo (ej: -$33.301).
+Si un monto no es legible por estar tapado, usa null.
+
+Responde SOLO en JSON válido sin markdown:
+{
+  "gastos": [
+    {"fecha": "07/06/2026", "glosa": "Manantial Webpay", "monto": 33301},
+    {"fecha": "07/06/2026", "glosa": "Sgcm Spa", "monto": null}
+  ]
+}
+
+Reglas:
+- fecha en formato DD/MM/AAAA
+- monto como número positivo sin puntos ni $, null si no se ve
+- incluye TODOS los gastos visibles, en el mismo orden que aparecen`
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content[0].text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    imgRows = parsed.gastos || [];
+
+    if (!imgRows.length) {
+      document.getElementById('imgReviewSub').textContent = 'No se encontraron gastos en la imagen';
+      document.getElementById('imgReviewTable').innerHTML =
+        '<div class="empty-state"><div class="empty-state-icon">😕</div><div class="empty-state-text">No se pudieron extraer gastos.<br>Intenta con una imagen más nítida.</div></div>';
+      return;
+    }
+
+    document.getElementById('imgReviewSub').textContent =
+      `${imgRows.length} gasto${imgRows.length!==1?'s':''} encontrado${imgRows.length!==1?'s':''} — asigna categorías`;
+    renderImgTable();
+
+  } catch(err) {
+    document.getElementById('imgReviewSub').textContent = '❌ Error al procesar imagen';
+    document.getElementById('imgReviewTable').innerHTML =
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${err.message}</div></div>`;
+  }
+}
+
+function renderImgTable() {
+  // Build all cuenta options
+  const allCuentas = [];
+  ['Familiar','Personal'].forEach(grp => {
+    Object.entries(CUENTAS[grp]).forEach(([cat, data]) => {
+      data.cuentas.forEach(c => allCuentas.push({ grp, cat, cuenta: c, rep: data.rep||'' }));
+    });
+  });
+
+  const cuentaOpts = allCuentas.map(o =>
+    `<option value="${o.grp}|||${o.cat}|||${o.cuenta}|||${o.rep}">${o.grp} › ${o.cat} › ${o.cuenta}</option>`
+  ).join('');
+
+  document.getElementById('imgReviewTable').innerHTML = imgRows.map((r, i) => {
+    const unlegible = r.monto === null || r.monto === undefined;
+    return `<div class="img-row${unlegible?' unlegible':''}">
+      <div class="img-row-header">
+        <div>
+          <div class="img-row-date">📅 ${r.fecha}</div>
+          <div class="img-row-glosa">${r.glosa}</div>
+        </div>
+        <div class="img-row-amount">${unlegible ? '⚠️ No legible' : '$'+fmt(r.monto)}</div>
+      </div>
+      <div class="img-row-selects">
+        ${unlegible ? `<input type="number" id="imgMonto${i}" placeholder="Ingresa el monto" class="img-row-select" style="font-size:15px" inputmode="decimal">` : ''}
+        <select id="imgCuenta${i}" class="img-row-select">
+          <option value="">— Selecciona cuenta —</option>
+          ${cuentaOpts}
+        </select>
+        <select id="imgSkip${i}" class="img-row-select" style="color:var(--text-muted)">
+          <option value="include">✓ Incluir este gasto</option>
+          <option value="skip">✗ Omitir este gasto</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function confirmarImageImport() {
+  const validos = [];
+  let sinCuenta = 0;
+
+  for (let i = 0; i < imgRows.length; i++) {
+    const skip = document.getElementById(`imgSkip${i}`).value === 'skip';
+    if (skip) continue;
+
+    const cuentaVal = document.getElementById(`imgCuenta${i}`).value;
+    if (!cuentaVal) { sinCuenta++; continue; }
+
+    const [grp, cat, cuenta, rep] = cuentaVal.split('|||');
+    const montoEl = document.getElementById(`imgMonto${i}`);
+    const monto = imgRows[i].monto !== null ? imgRows[i].monto : parseFloat(montoEl?.value);
+    if (!monto || isNaN(monto)) { sinCuenta++; continue; }
+
+    // Parse fecha DD/MM/AAAA → ISO
+    const [d, m, y] = imgRows[i].fecha.split('/');
+    const fecha = new Date(parseInt(y), parseInt(m)-1, parseInt(d), 12).toISOString();
+
+    validos.push({ monto, quien: imgWho, grupo: grp, categoria: cat, cuenta, rep,
+                   desc: '', descBanco: imgRows[i].glosa, fecha });
+  }
+
+  if (!validos.length) {
+    showToast('⚠️ No hay gastos válidos para importar');
+    return;
+  }
+  if (sinCuenta > 0) {
+    const ok = window.confirm(`${sinCuenta} gasto${sinCuenta>1?'s':''} sin cuenta asignada serán omitidos. ¿Continuar con los ${validos.length} restantes?`);
+    if (!ok) return;
+  }
+
+  setLoading(true);
+  showToast(`⏳ Importando ${validos.length} gastos…`);
+  let ok = 0, err = 0;
+  for (const g of validos) {
+    try { await api({ action: 'addGasto', payload: g }); ok++; }
+    catch(e) { err++; }
+  }
+  setLoading(false);
+  showToast(`✓ ${ok} gastos importados${err ? ' · '+err+' errores' : ''}`);
+  await loadMesActual();
+  setTimeout(() => navTo('historial'), 1200);
 }
 
 // ══════ DRAG & DROP (config cuentas) ══════
