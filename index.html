@@ -566,7 +566,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyC5OOeEUARwYI6H5ZjUHlv90HErzV1g8b5-b4jgwvHBm_NSVWlas_gqIHnhvzHNYzz3g/exec';
+const SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbyC5OOeEUARwYI6H5ZjUHlv90HErzV1g8b5-b4jgwvHBm_NSVWlas_gqIHnhvzHNYzz3g/exec';
+const GEMINI_KEY  = 'AQ.Ab8RN6IDNtukbsTvVXtJLcOl0ZT7ofNmfGrxJfMWeW__Y_fnnA'; // aistudio.google.com → Get API Key
+const GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 let CUENTAS = {
   Familiar: {
@@ -1025,37 +1027,26 @@ async function validateRowsWithAI(parsed){
     );
     if(exactMatch){matchCache[key]={status:'ok',grp:exactMatch.grp,cat:exactMatch.cat,cuenta:exactMatch.cuenta,rep:exactMatch.rep};continue;}
 
-    // Ask Claude to match
+    // Ask Gemini to match
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:400,
-        messages:[{role:'user',content:`Eres un asistente que valida gastos domésticos. 
+      if(!GEMINI_KEY||GEMINI_KEY==='TU_GEMINI_KEY_AQUI'){matchCache[key]={status:'unknown',reason:'Gemini no configurado'};continue;}
+      const prompt=`Eres un asistente que valida gastos domésticos.
 
 Tienes esta lista de cuentas válidas (formato Grupo|Categoria|Cuenta|Reparticion):
 ${knownStr}
 
 El usuario importó un gasto con:
 - Grupo: "${grp}"
-- Categoria: "${cat}"  
+- Categoria: "${cat}"
 - Cuenta: "${cuenta}"
 
-Responde SOLO en JSON, sin texto adicional:
-{
-  "status": "ok" | "match" | "unknown",
-  "grp": "Familiar" o "Personal" (si aplica),
-  "cat": "categoria exacta de la lista" (si aplica),
-  "cuenta": "cuenta exacta de la lista" (si aplica),
-  "rep": "Proporcional" o "50/50" o "" (si aplica),
-  "reason": "explicación breve de qué se corrigió o por qué es desconocido"
-}
+Responde SOLO en JSON sin markdown:
+{"status":"ok","grp":"...","cat":"...","cuenta":"...","rep":"...","reason":"..."}
 
-Reglas:
-- "ok": coincide exacto (ignorando mayúsculas/tildes mínimas)
-- "match": hay una cuenta similar que tiene sentido (ej "benzina"→"Bencina", "comida"→"Comida Casa", "jardín infantil"→"Jardín")
-- "unknown": no hay ninguna cuenta que tenga sentido`}]})});
+status puede ser: "ok" (coincide exacto), "match" (similar con sentido), "unknown" (sin coincidencia)`;
+      const res=await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
       const data=await res.json();
-      const text=data.content[0].text;
+      const text=data.candidates[0].content.parts[0].text;
       const json=JSON.parse(text.replace(/```json|```/g,'').trim());
       matchCache[key]=json;
     }catch(e){matchCache[key]={status:'unknown',reason:'Error al validar'};}
@@ -1369,24 +1360,14 @@ function renderSearchResults(histMatches, aiResults) {
 }
 
 async function getAISuggestion(query) {
-  // Build known combos string
+  if(!GEMINI_KEY || GEMINI_KEY === 'TU_GEMINI_KEY_AQUI') return null;
   const combos = [];
   ['Familiar','Personal'].forEach(grp => {
     Object.entries(CUENTAS[grp]).forEach(([cat, data]) => {
       data.cuentas.forEach(c => combos.push(`${grp}|${cat}|${c}`));
     });
   });
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: `Eres un asistente de finanzas personales chileno.
+  const prompt = `Eres un asistente de finanzas personales chileno.
 El usuario tiene este texto de su cartola bancaria: "${query}"
 Estas son las combinaciones Grupo|Categoria|Cuenta disponibles:
 ${combos.join(', ')}
@@ -1394,12 +1375,15 @@ ${combos.join(', ')}
 Responde SOLO en JSON sin markdown:
 {"grupo":"...","categoria":"...","cuenta":"...","razon":"explicación breve en español de por qué corresponde a esta combinación"}
 
-Si no puedes determinarlo con certeza razonable, responde: {"grupo":null}`
-        }]
-      })
+Si no puedes determinarlo con certeza razonable, responde: {"grupo":null}`;
+  try {
+    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
     });
     const data = await res.json();
-    const text = data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim();
+    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g,'').trim();
     const parsed = JSON.parse(text);
     if(!parsed.grupo) return null;
     return parsed;
@@ -1443,22 +1427,10 @@ async function onImageSelected(e) {
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
-            },
-            {
-              type: 'text',
-              text: `Esta es una captura de pantalla de la app bancaria chilena Banco Falabella mostrando movimientos de tarjeta de crédito.
+    if(!GEMINI_KEY||GEMINI_KEY==='TU_GEMINI_KEY_AQUI'){
+      throw new Error('Configura tu Gemini API Key en el archivo');
+    }
+    const prompt = `Esta es una captura de pantalla de la app bancaria chilena Banco Falabella mostrando movimientos de tarjeta de crédito.
 Extrae TODOS los gastos que aparecen en la imagen.
 Las fechas aparecen como encabezados de grupo (ej: "Domingo 7 de Junio 2026").
 Cada gasto tiene una glosa (nombre del comercio) y un monto negativo (ej: -$33.301).
@@ -1475,15 +1447,24 @@ Responde SOLO en JSON válido sin markdown:
 Reglas:
 - fecha en formato DD/MM/AAAA
 - monto como número positivo sin puntos ni $, null si no se ve
-- incluye TODOS los gastos visibles, en el mismo orden que aparecen`
-            }
+- incluye TODOS los gastos visibles en el mismo orden que aparecen`;
+
+    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } },
+            { text: prompt }
           ]
         }]
       })
     });
 
     const data = await res.json();
-    const text = data.content[0].text.replace(/```json|```/g, '').trim();
+    if(data.error) throw new Error(data.error.message || 'Error Gemini');
+    const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(text);
     imgRows = parsed.gastos || [];
 
