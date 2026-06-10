@@ -566,8 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL    = 'https://script.google.com/macros/s/AKfycby302xVh0Xg7wSlPRT7irRmSA-rzx4syVzxXSv_7WISwzgpbPu0hw7-u0tRC-pw50Y_3Q/exec'; // URL de tu Apps Script
-const ANTHROPIC_KEY = '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'; // sk-ant-... desde console.anthropic.com
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6zKOorKZ-swzTePjmAQY6FxKbLRe0yBMKhbCYk6g6h2Vm3wgPgJMre9wfgU2VxWXVCQ/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -1386,45 +1385,16 @@ async function onImageSelected(e) {
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
   try {
-    if(!ANTHROPIC_KEY || ANTHROPIC_KEY === 'TU_ANTHROPIC_KEY_AQUI'){
-      throw new Error('Configura tu Anthropic API Key en el archivo');
-    }
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
-            { type: 'text', text: `Esta es una captura de pantalla de la app bancaria chilena mostrando movimientos de tarjeta de crédito.
-Extrae TODOS los gastos que aparecen en la imagen.
-Las fechas aparecen como encabezados de grupo (ej: "Domingo 7 de Junio 2026").
-Cada gasto tiene una glosa (nombre del comercio) y un monto negativo (ej: -$33.301).
-Si un monto no es legible por estar tapado, usa null.
-
-Responde SOLO en JSON válido sin markdown:
-{"gastos":[{"fecha":"07/06/2026","glosa":"Manantial Webpay","monto":33301},{"fecha":"07/06/2026","glosa":"Sgcm Spa","monto":null}]}
-
-Reglas:
-- fecha en formato DD/MM/AAAA
-- monto como número positivo sin puntos ni $, null si no se ve
-- incluye TODOS los gastos visibles en el mismo orden` }
-          ]
-        }]
-      })
+    // Send image via Apps Script proxy → Anthropic (key stored in Script Properties)
+    const proxyRes = await api({
+      action: 'anthropicImage',
+      base64,
+      mimeType: file.type || 'image/jpeg'
     });
-    const data = await res.json();
-    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    const text = data.content[0].text.replace(/\`\`\`json|\`\`\`/g, '').trim();
-    const parsed = JSON.parse(text);
+    if(proxyRes.error) throw new Error(proxyRes.error);
+    // proxyRes.gastos already parsed
+    const text = JSON.stringify({ gastos: proxyRes.gastos });
+    const parsed = proxyRes.gastos ? proxyRes : JSON.parse(text);
     imgRows = parsed.gastos || [];
 
     if (!imgRows.length) {
@@ -1442,7 +1412,7 @@ Reglas:
     const errMsg = err.message || String(err);
     document.getElementById('imgReviewSub').textContent = '❌ Error al procesar imagen';
     document.getElementById('imgReviewTable').innerHTML =
-      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${errMsg}<br><br><small style="color:var(--text-muted);font-size:10px">Key: ${ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0,20)+'...' : 'no configurada'}</small></div></div>`;
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${errMsg}</div></div>`;
   }
 }
 
