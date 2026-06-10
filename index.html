@@ -485,8 +485,13 @@
 
   <!-- IMAGE TAB -->
   <div id="importPane-image" style="display:none">
-    <div style="background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--warning);margin-bottom:16px;line-height:1.5">
-      ⚠️ La lectura automática de imágenes no está disponible. Para importar masivamente usa la pestaña <b>Excel / CSV</b>.
+    <div style="background:var(--personal-light);border:1px solid var(--personal-mid);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--personal);margin-bottom:16px;line-height:1.5">
+      📸 Sube una captura de pantalla de tu app del banco. Se extrae fecha, glosa y monto automáticamente.
+    </div>
+    <div class="upload-zone" id="uploadZoneImg" onclick="document.getElementById('imgInput').click()">
+      <div class="upload-zone-icon">📸</div>
+      <div class="upload-zone-label">Toca para subir imagen</div>
+      <div class="upload-zone-sub">JPG o PNG — captura de la app del banco</div>
     </div>
     <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="onImageSelected(event)">
   </div>
@@ -561,7 +566,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby302xVh0Xg7wSlPRT7irRmSA-rzx4syVzxXSv_7WISwzgpbPu0hw7-u0tRC-pw50Y_3Q/exec'; // URL de tu Apps Script
+const SCRIPT_URL    = 'https://script.google.com/macros/s/AKfycby302xVh0Xg7wSlPRT7irRmSA-rzx4syVzxXSv_7WISwzgpbPu0hw7-u0tRC-pw50Y_3Q/exec'; // URL de tu Apps Script
+const ANTHROPIC_KEY = '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'; // sk-ant-... desde console.anthropic.com
 
 let CUENTAS = {
   Familiar: {
@@ -1370,9 +1376,45 @@ async function onImageSelected(e) {
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
   try {
-    // Sin IA: mostrar mensaje de ingreso manual
-    throw new Error('Lectura automática de imagen no disponible. Usa Excel/CSV para importar masivamente.');
-    const parsed = res.gastos ? res : JSON.parse(text);
+    if(!ANTHROPIC_KEY || ANTHROPIC_KEY === 'TU_ANTHROPIC_KEY_AQUI'){
+      throw new Error('Configura tu Anthropic API Key en el archivo');
+    }
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } },
+            { type: 'text', text: `Esta es una captura de pantalla de la app bancaria chilena mostrando movimientos de tarjeta de crédito.
+Extrae TODOS los gastos que aparecen en la imagen.
+Las fechas aparecen como encabezados de grupo (ej: "Domingo 7 de Junio 2026").
+Cada gasto tiene una glosa (nombre del comercio) y un monto negativo (ej: -$33.301).
+Si un monto no es legible por estar tapado, usa null.
+
+Responde SOLO en JSON válido sin markdown:
+{"gastos":[{"fecha":"07/06/2026","glosa":"Manantial Webpay","monto":33301},{"fecha":"07/06/2026","glosa":"Sgcm Spa","monto":null}]}
+
+Reglas:
+- fecha en formato DD/MM/AAAA
+- monto como número positivo sin puntos ni $, null si no se ve
+- incluye TODOS los gastos visibles en el mismo orden` }
+          ]
+        }]
+      })
+    });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const text = data.content[0].text.replace(/\`\`\`json|\`\`\`/g, '').trim();
+    const parsed = JSON.parse(text);
     imgRows = parsed.gastos || [];
 
     if (!imgRows.length) {
