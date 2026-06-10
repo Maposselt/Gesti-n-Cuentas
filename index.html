@@ -566,7 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6zKOorKZ-swzTePjmAQY6FxKbLRe0yBMKhbCYk6g6h2Vm3wgPgJMre9wfgU2VxWXVCQ/exec'; // URL de tu Apps Script
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzQJ9vZ0zK4FzUsirHdtD_uOAIii4c7_Kgrwj3MqvXJaxUifg88pAeiZTGrNvBQruGDLg/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -609,12 +609,31 @@ let form={},screenStack=[],currentScreen='screen-home';
 // ══════ API ══════
 async function api(body){
   if(!SCRIPT_URL||SCRIPT_URL==='TU_URL_AQUI'){showToast('⚠️ Configura tu URL de Apps Script');throw new Error('URL no configurada');}
-  const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
-  const res = await fetch(url, {method:'GET', redirect:'follow'});
-  const text = await res.text();
-  const data = JSON.parse(text);
-  if(data.error) throw new Error(data.error);
-  return data;
+  let res;
+  try {
+    if(body.action === 'anthropicImage'){
+      // POST for large image payload (base64 too big for URL)
+      res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'payload=' + encodeURIComponent(JSON.stringify(body)),
+        redirect: 'follow'
+      });
+    } else {
+      const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
+      res = await fetch(url, {method:'GET', redirect:'follow'});
+    }
+    const text = await res.text();
+    const data = JSON.parse(text);
+    if(data.error) throw new Error(data.error);
+    return data;
+  } catch(err) {
+    // Add context to fetch errors
+    if(err.message === 'Failed to fetch') {
+      throw new Error('No se pudo conectar con Apps Script. Verifica tu URL y conexión a internet.');
+    }
+    throw err;
+  }
 }
 function setLoading(on){state.loading=on;document.querySelectorAll('.btn-primary').forEach(b=>b.disabled=on);}
 function showLoading(id,msg='Cargando...'){const el=document.getElementById(id);if(el)el.innerHTML=`<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">${msg}</div></div>`;}
