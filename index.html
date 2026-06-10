@@ -485,13 +485,8 @@
 
   <!-- IMAGE TAB -->
   <div id="importPane-image" style="display:none">
-    <div style="background:var(--personal-light);border:1px solid var(--personal-mid);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--personal);margin-bottom:16px;line-height:1.5">
-      📸 Sube una captura de pantalla de tu app del banco. Se extrae fecha, glosa y monto automáticamente.
-    </div>
-    <div class="upload-zone" id="uploadZoneImg" onclick="document.getElementById('imgInput').click()">
-      <div class="upload-zone-icon">📸</div>
-      <div class="upload-zone-label">Toca para subir imagen</div>
-      <div class="upload-zone-sub">JPG o PNG — captura de la app del banco</div>
+    <div style="background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:12px 14px;font-size:13px;color:var(--warning);margin-bottom:16px;line-height:1.5">
+      ⚠️ La lectura automática de imágenes no está disponible. Para importar masivamente usa la pestaña <b>Excel / CSV</b>.
     </div>
     <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="onImageSelected(event)">
   </div>
@@ -566,7 +561,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxVtPdNLrp8uqSLSHxKIuxKv-rkIxRvch7AKpeINRET4xroHrv-QZaQ0IjAVCgnvVp4Hg/exec'; // URL de tu Apps Script
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby302xVh0Xg7wSlPRT7irRmSA-rzx4syVzxXSv_7WISwzgpbPu0hw7-u0tRC-pw50Y_3Q/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -609,19 +604,8 @@ let form={},screenStack=[],currentScreen='screen-home';
 // ══════ API ══════
 async function api(body){
   if(!SCRIPT_URL||SCRIPT_URL==='TU_URL_AQUI'){showToast('⚠️ Configura tu URL de Apps Script');throw new Error('URL no configurada');}
-  let res;
-  // Use POST for image (base64 too large for URL param), GET for everything else
-  if(body.action === 'geminiImage'){
-    res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'payload=' + encodeURIComponent(JSON.stringify(body)),
-      redirect: 'follow'
-    });
-  } else {
-    const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
-    res = await fetch(url, {method:'GET', redirect:'follow'});
-  }
+  const url = SCRIPT_URL + '?payload=' + encodeURIComponent(JSON.stringify(body));
+  const res = await fetch(url, {method:'GET', redirect:'follow'});
   const text = await res.text();
   const data = JSON.parse(text);
   if(data.error) throw new Error(data.error);
@@ -1034,11 +1018,8 @@ async function validateRowsWithAI(parsed){
     );
     if(exactMatch){matchCache[key]={status:'ok',grp:exactMatch.grp,cat:exactMatch.cat,cuenta:exactMatch.cuenta,rep:exactMatch.rep};continue;}
 
-    // Ask Gemini via Apps Script proxy
-    try{
-      const res=await api({action:'geminiValidate',grp,cat,cuenta,knownStr});
-      matchCache[key]=res.result||{status:'unknown',reason:'Sin respuesta'};
-    }catch(e){matchCache[key]={status:'unknown',reason:'Error al validar'};}
+    // Local exact match only (no AI)
+    matchCache[key] = { status:'unknown', reason:'No coincide con ninguna cuenta conocida' };
   }
 
   document.getElementById('aiProgressBar').style.display='none';
@@ -1349,17 +1330,7 @@ function renderSearchResults(histMatches, aiResults) {
 }
 
 async function getAISuggestion(query) {
-  const combos = [];
-  ['Familiar','Personal'].forEach(grp => {
-    Object.entries(CUENTAS[grp]).forEach(([cat, data]) => {
-      data.cuentas.forEach(c => combos.push(`${grp}|${cat}|${c}`));
-    });
-  });
-  try {
-    const res = await api({ action:'geminiSearch', query, combos: combos.join(', ') });
-    if(!res.result || !res.result.grupo) return null;
-    return res.result;
-  } catch(e) { return null; }
+  return null; // IA desactivada
 }
 
 // ══════ IMPORTAR DESDE IMAGEN BANCO ══════
@@ -1399,11 +1370,8 @@ async function onImageSelected(e) {
     '<div class="empty-state"><div class="empty-state-icon">🤖</div><div class="empty-state-text">Extrayendo fecha, glosa y monto…</div></div>';
 
   try {
-    // Send image to Apps Script proxy → Gemini
-    const res = await api({ action:'geminiImage', base64, mimeType: file.type||'image/jpeg' });
-    if(res.error) throw new Error(res.error);
-    // res.gastos already parsed by Apps Script
-    const text = JSON.stringify({ gastos: res.gastos });
+    // Sin IA: mostrar mensaje de ingreso manual
+    throw new Error('Lectura automática de imagen no disponible. Usa Excel/CSV para importar masivamente.');
     const parsed = res.gastos ? res : JSON.parse(text);
     imgRows = parsed.gastos || [];
 
