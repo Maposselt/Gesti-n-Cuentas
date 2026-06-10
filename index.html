@@ -1361,12 +1361,22 @@ async function onImageSelected(e) {
   if (!file) return;
   e.target.value = ''; // reset so same file can be re-selected
 
-  // Convert to base64
+  // Compress image before sending
   const base64 = await new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result.split(',')[1]);
-    r.onerror = () => rej(new Error('Error al leer imagen'));
-    r.readAsDataURL(file);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if(w > MAX){ h = Math.round(h*MAX/w); w = MAX; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => rej(new Error('Error al leer imagen'));
+    img.src = url;
   });
 
   // Show loading state
@@ -1429,9 +1439,10 @@ Reglas:
     renderImgTable();
 
   } catch(err) {
+    const errMsg = err.message || String(err);
     document.getElementById('imgReviewSub').textContent = '❌ Error al procesar imagen';
     document.getElementById('imgReviewTable').innerHTML =
-      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${err.message}</div></div>`;
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">${errMsg}<br><br><small style="color:var(--text-muted);font-size:10px">Key: ${ANTHROPIC_KEY ? ANTHROPIC_KEY.slice(0,20)+'...' : 'no configurada'}</small></div></div>`;
   }
 }
 
