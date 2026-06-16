@@ -566,7 +566,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-const SCRIPT_URL = 'TU_URL_AQUI'; // URL de tu Apps Script
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzQJ9vZ0zK4FzUsirHdtD_uOAIii4c7_Kgrwj3MqvXJaxUifg88pAeiZTGrNvBQruGDLg/exec'; // URL de tu Apps Script
 
 let CUENTAS = {
   Familiar: {
@@ -1055,7 +1055,7 @@ async function validateRowsWithAI(parsed){
     const match=matchCache[key]||{status:'unknown',reason:'Sin coincidencia'};
     const fecha=parseDate(r.fecha);
     const monto=parseFloat(r.monto)||0;
-    const const quienRaw=(r.quien||'').toLowerCase();const quien=['max','barb'].includes(quienRaw)?(quienRaw==='max'?'Max':'Barb'):null;
+    const quien=(()=>{const q=(r.quien||'').toLowerCase();return ['max','barb'].includes(q)?(q==='max'?'Max':'Barb'):null;})();
 
     let rowStatus=match.status;
     const issues=[];
